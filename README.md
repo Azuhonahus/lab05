@@ -2,7 +2,6 @@
 
 ## HOMEWORK
 ```
-fg
 $ mkdir third-party
 $ git submodule add https://github.com/google/googletest third-party/gtest
 $ touch CMakeLists.txt
