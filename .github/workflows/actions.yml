@@ -1,27 +1,40 @@
-cmake_minimum_required(VERSION 3.22)
+name: CMake
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
-option(BUILD_TESTS "Build tests" OFF)
+jobs:
+  build_Linux:
+    runs-on: ubuntu-latest
 
-if(BUILD_TESTS)                   
-  add_compile_options(--coverage) 
-endif()
+    steps:
+    - uses: actions/checkout@v3
 
-project (banking)
+    - name: Adding gtest
+      run: git clone https://github.com/google/googletest.git third-party/gtest -b release-1.11.0
 
-add_library(banking STATIC ${CMAKE_CURRENT_SOURCE_DIR}/banking/Transaction.cpp ${CMAKE_CURRENT_SOURCE_DIR}/banking/Account.cpp)
-target_include_directories(banking PUBLIC
-${CMAKE_CURRENT_SOURCE_DIR}/banking )
+    - name: Install lcov
+      run: sudo apt-get install -y lcov
 
-target_link_libraries(banking gcov)
+    - name: Config banking with tests
+      run: cmake -H. -B ${{github.workspace}}/build -DBUILD_TESTS=ON -DCMAKE_CXX_FLAGS='--coverage'
 
-if(BUILD_TESTS)
-  enable_testing()
-  add_subdirectory(third-party/gtest)
-  file(GLOB BANKING_TEST_SOURCES tests/*.cpp)
-  add_executable(check ${BANKING_TEST_SOURCES})
-  target_link_libraries(check banking gtest_main)
-  add_test(NAME check COMMAND check)
-endif()
+    - name: Build banking
+      run: cmake --build ${{github.workspace}}/build
+
+    - name: Run tests
+      run: |
+        build/check
+        lcov --directory . --capture --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' --output-file coverage.info
+        lcov --remove coverage.info '${{github.workspace}}/third-party/gtest/*' --output-file coverage.info
+        lcov --list coverage.info
+
+    - name: Coveralls
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        path-to-lcov: ${{ github.workspace }}/coverage.info
